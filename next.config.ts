@@ -1,12 +1,6 @@
 import type { NextConfig } from "next";
 
-type NextConfigWithAllowedOrigins = NextConfig & {
-  experimental?: NextConfig["experimental"] & {
-    allowedDevOrigins?: string[];
-  };
-};
-
-const nextConfig: NextConfigWithAllowedOrigins = {
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
@@ -25,13 +19,6 @@ const nextConfig: NextConfigWithAllowedOrigins = {
         protocol: "https",
         hostname: "shared.akamai.steamstatic.com",
       },
-    ],
-  },
-  experimental: {
-    allowedDevOrigins: [
-      "http://10.0.0.65:3000",
-      "http://10.0.0.65",
-      "http://localhost:3000",
     ],
   },
 };

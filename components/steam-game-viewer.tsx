@@ -271,9 +271,9 @@ export function SteamGameViewer() {
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-col gap-6 rounded-[32px] border-4 border-[#050a12] bg-[#cfd5e0] p-6 text-[#0b1420] shadow-[18px_18px_0_#050a12]">
-      <header className="relative flex items-center justify-between border-b-4 border-[#050a12] pb-4">
-        <div className="flex items-center gap-3 text-2xl font-black tracking-widest text-[#0ea5e9]">
+    <section className="mx-auto flex h-full w-full flex-col gap-3 overflow-hidden bg-[#cfd5e0] p-2 text-[#0b1420] sm:max-w-2xl sm:rounded-[32px] sm:border-4 sm:border-[#050a12] sm:p-6 sm:shadow-[18px_18px_0_#050a12]">
+      <header className="relative flex flex-shrink-0 items-center justify-between border-b-2 border-[#050a12] pb-2 sm:border-b-4 sm:pb-3">
+        <div className="flex items-center gap-2 text-xl font-black tracking-widest text-[#0ea5e9] sm:text-2xl">
           <span className="text-[#facc15]">?</span>
           STEAMCODLE
         </div>
@@ -281,7 +281,7 @@ export function SteamGameViewer() {
           type="button"
           aria-label="Toggle stats"
           onClick={() => setShowStats((prev) => !prev)}
-          className="rounded-2xl border-2 border-[#050a12] bg-[#0f172a] px-3 py-2 text-white transition hover:bg-[#1d283a]"
+          className="rounded-2xl border-2 border-[#050a12] bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1d283a]"
         >
           <div className="flex items-center gap-2">
             <SignalDot filled />
@@ -298,48 +298,50 @@ export function SteamGameViewer() {
         ) : null}
       </header>
 
-      <div className="flex justify-center">
+      <div className="flex flex-shrink-0 justify-center">
         {state.game ? <SteamGameCard game={state.game} /> : <CardPlaceholder />}
       </div>
 
-      <div className="text-center">
-        <p className="text-lg font-semibold">Review Guess: {guessCounterLabel}</p>
+      <div className="flex-shrink-0 text-center">
+        <p className="text-base font-semibold sm:text-lg">
+          Review Guess: {guessCounterLabel}
+        </p>
         {revealAnswer ? (
-          <p className="text-sm font-bold text-[#0ea5e9]">
+          <p className="text-xs font-bold text-[#0ea5e9] sm:text-sm">
             Actual: {actualScore}%
           </p>
         ) : (
-          <p className="text-sm text-[#4b5563]">
+          <p className="text-xs text-[#4b5563] sm:text-sm">
             Target: Steam English review percentage
           </p>
         )}
       </div>
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-shrink-0 flex-col gap-2">
         {Array.from({ length: MAX_GUESSES }).map((_, index) => {
           const guess = guesses[index];
-          const trend = getTrendIcon(guess, actualScore);
+          const { trend, tone } = getTrendData(guess, actualScore);
           return (
             <li
               key={index}
-              className="flex items-center justify-between rounded-full border-2 border-[#050a12] bg-[#7c8899] px-4 py-2 text-lg font-black tracking-wide text-white"
+              className={`flex items-center justify-between rounded-full border-2 border-[#050a12] px-3 py-1 text-base font-black tracking-wide text-white transition sm:px-4 sm:py-2 sm:text-lg ${tone.bg}`}
             >
-              <span>{typeof guess === "number" ? `${guess}%` : "\u00A0"}</span>
-              <span className="text-xl font-semibold">{trend}</span>
+              <span className={`${tone.text} transition`}>{typeof guess === "number" ? `${guess}%` : "\u00A0"}</span>
+              <span className={`text-lg font-semibold sm:text-xl ${tone.text}`}>{trend}</span>
             </li>
           );
         })}
       </ul>
 
       <form
-        className="flex flex-wrap items-center gap-3"
+        className="flex flex-shrink-0 flex-wrap items-center gap-3"
         onSubmit={handleSubmitGuess}
       >
-        <label className="flex flex-1 items-center rounded-full border-2 border-[#050a12] bg-white px-4 py-2 text-sm text-[#0b1420]">
+        <label className="flex flex-1 items-center rounded-full border-2 border-[#050a12] bg-white px-3 py-2 text-xs text-[#0b1420] sm:text-sm">
           <span className="mr-2 text-[#0ea5e9]">★</span>
           <input
             type="text"
-            className="w-full bg-transparent text-base font-semibold uppercase tracking-wide text-[#0b1420] placeholder:text-[#94a3b8] focus:outline-none"
+            className="w-full bg-transparent text-sm font-semibold uppercase tracking-wide text-[#0b1420] placeholder:text-[#94a3b8] focus:outline-none sm:text-base"
             placeholder="Enter a % from 0-100"
             value={currentGuess}
             onChange={(event) => setCurrentGuess(event.target.value)}
@@ -353,17 +355,17 @@ export function SteamGameViewer() {
         <button
           type="submit"
           disabled={!canSubmitGuess}
-          className="rounded-full border-2 border-[#050a12] bg-[#0ea5e9] px-6 py-2 text-sm font-black uppercase tracking-widest text-white transition hover:bg-[#0284c7] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border-2 border-[#050a12] bg-[#0ea5e9] px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition hover:bg-[#0284c7] disabled:cursor-not-allowed disabled:opacity-60 sm:px-6 sm:text-sm"
         >
           Submit
         </button>
       </form>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t-4 border-[#050a12] pt-4 text-xs font-semibold uppercase tracking-[0.4em] text-[#4b5563]">
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-t-2 border-[#050a12] pt-2 text-[10px] font-semibold uppercase tracking-[0.4em] text-[#4b5563] sm:border-t-4 sm:pt-3 sm:text-xs">
         <button
           type="button"
           onClick={handleNewGame}
-          className="rounded-full border-2 border-[#050a12] bg-[#0f172a] px-4 py-2 text-white transition hover:bg-[#1d283a] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border-2 border-[#050a12] bg-[#0f172a] px-4 py-2 text-xs text-white transition hover:bg-[#1d283a] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
           disabled={state.status === "loading" || dailyLimitReached}
         >
           {didWin || gameResolved ? "New Game" : "Skip"}
@@ -371,7 +373,9 @@ export function SteamGameViewer() {
         <span className="text-[#0b1420]">Community Score Challenge</span>
       </div>
 
-      <p className="text-center text-sm text-[#0f172a]">{statusLabel}</p>
+      <p className="text-center text-xs text-[#0f172a] sm:text-sm">
+        {statusLabel}
+      </p>
     </section>
   );
 }
@@ -388,20 +392,45 @@ function SignalDot({ filled }: { filled: boolean }) {
 
 function CardPlaceholder() {
   return (
-    <div className="h-72 w-full max-w-xs animate-pulse rounded-[32px] border-4 border-dashed border-[#7c8899] bg-[#e2e8f0]" />
+    <div className="h-40 w-full max-w-[220px] animate-pulse rounded-[28px] border-4 border-dashed border-[#7c8899] bg-[#e2e8f0] sm:h-64 sm:max-w-xs sm:rounded-[32px]" />
   );
 }
 
-function getTrendIcon(guess?: number, actual?: number | null) {
+function getTrendData(guess?: number, actual?: number | null) {
   if (typeof guess !== "number" || typeof actual !== "number") {
-    return "";
+    return {
+      trend: "",
+      tone: { bg: "bg-[#7c8899]", text: "text-white" },
+    };
   }
 
   if (Math.abs(guess - actual) <= WIN_THRESHOLD) {
-    return "";
+    return {
+      trend: "✔",
+      tone: {
+        bg: "bg-emerald-600 animate-pulse",
+        text: "text-white",
+      },
+    };
   }
 
-  return guess > actual ? "▼" : "▲";
+  if (guess > actual) {
+    return {
+      trend: "▼",
+      tone: {
+        bg: "bg-amber-500/80",
+        text: "text-[#0b1420]",
+      },
+    };
+  }
+
+  return {
+    trend: "▲",
+    tone: {
+      bg: "bg-rose-600/80",
+      text: "text-white",
+    },
+  };
 }
 
 type StatsPanelProps = {
