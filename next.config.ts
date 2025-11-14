@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+type NextConfigWithAllowedOrigins = NextConfig & {
+  experimental?: NextConfig["experimental"] & {
+    allowedDevOrigins?: string[];
+  };
+};
+
+const nextConfig: NextConfigWithAllowedOrigins = {
   images: {
     remotePatterns: [
       {
