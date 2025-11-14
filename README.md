@@ -1,37 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Steamcodle
 
-## Getting Started
+Steamcodle is a tiny guessing game modeled after Costcodle but fueled by live Steam Store data. Every round pulls a fresh featured game, hides the English review percentage, and gives you six chances to guess the score (0‑100). Get within four points and it’s a win. Otherwise the real percentage is revealed and the next title is queued up.
 
-First, run the development server:
+### Features
+
+- Live data from Steam’s public store + review endpoints (no manual game list)
+- Filtering for base games with at least 100 English reviews
+- Numeric guessing with higher/lower hints and automatic win detection
+- Local stats with streak tracking plus a three-games-per-day cap
+- Optional dev mode (`NEXT_PUBLIC_DEV_MODE=true`) for unlimited rounds while building
+
+### Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# visit http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a `.env.local` with `NEXT_PUBLIC_DEV_MODE=true` if you want unlimited rounds while testing. Leave it unset in production so the daily limit applies.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Deploying
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# steamcodle
+This is a standard Next.js 16 app. Build locally with `npm run build && npm start`, or deploy to any Next-compatible host (Vercel, Netlify, etc.). No extra environment variables are required unless you enable dev mode.
