@@ -13,10 +13,12 @@ import type { SteamGame } from "@/lib/steam";
 
 import { SteamGameCard } from "./steam-game-card";
 
-const MAX_GUESSES = 6;
-const WIN_THRESHOLD = 4; // percentage points difference allowed
-const DAILY_GAME_LIMIT = 3;
+const MAX_GUESSES = 5;
+const WIN_THRESHOLD = 2; // percentage points difference allowed
+const DAILY_LOSS_LIMIT = 3;
 const STORAGE_KEY = "steamcodleStats";
+const RECENT_APPS_KEY = "steamcodleRecentAppIds";
+const RECENT_APPS_LIMIT = 25;
 
 type StatsSnapshot = {
   totalGuesses: number;
@@ -25,7 +27,7 @@ type StatsSnapshot = {
   currentStreak: number;
   bestStreak: number;
   lastPlayedDate: string;
-  gamesPlayedToday: number;
+  lossesToday: number;
 };
 
 const getToday = () => new Date().toISOString().slice(0, 10);
@@ -37,19 +39,23 @@ const getDefaultStats = (): StatsSnapshot => ({
   currentStreak: 0,
   bestStreak: 0,
   lastPlayedDate: getToday(),
-  gamesPlayedToday: 0,
+  lossesToday: 0,
 });
 
 function normalizeStats(stats: StatsSnapshot): StatsSnapshot {
   const today = getToday();
+  const currentLosses =
+    typeof stats.lossesToday === "number" && Number.isFinite(stats.lossesToday)
+      ? stats.lossesToday
+      : 0;
   if (stats.lastPlayedDate === today) {
-    return stats;
+    return { ...stats, lossesToday: currentLosses };
   }
 
   return {
     ...stats,
     lastPlayedDate: today,
-    gamesPlayedToday: 0,
+    lossesToday: 0,
   };
 }
 
@@ -71,6 +77,8 @@ export function SteamGameViewer() {
   const [stats, setStats] = useState<StatsSnapshot>(() => getDefaultStats());
   const [statsLoaded, setStatsLoaded] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [recentAppIds, setRecentAppIds] = useState<number[]>([]);
+  const recentAppIdsRef = useRef<number[]>([]);
   const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   useEffect(() => {
@@ -78,7 +86,16 @@ export function SteamGameViewer() {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored) as StatsSnapshot;
+        const parsed = JSON.parse(stored) as StatsSnapshot & {
+          gamesPlayedToday?: number;
+        };
+        if (
+          typeof parsed.lossesToday !== "number" &&
+          typeof parsed.gamesPlayedToday === "number"
+        ) {
+          parsed.lossesToday = parsed.gamesPlayedToday;
+          delete parsed.gamesPlayedToday;
+        }
         setStats(normalizeStats(parsed));
       }
     } catch {
@@ -93,16 +110,39 @@ export function SteamGameViewer() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
   }, [stats, statsLoaded]);
 
-  const dailyLimitReached =
-    !isDevMode && stats.gamesPlayedToday >= DAILY_GAME_LIMIT;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(RECENT_APPS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as number[];
+        setRecentAppIds(parsed.filter((id) => Number.isFinite(id)));
+      }
+    } catch {
+      setRecentAppIds([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        RECENT_APPS_KEY,
+        JSON.stringify(recentAppIds),
+      );
+    }
+    recentAppIdsRef.current = recentAppIds;
+  }, [recentAppIds]);
+
+  const dailyLossLimitReached =
+    !isDevMode && stats.lossesToday >= DAILY_LOSS_LIMIT;
 
   const fetchGame = useCallback(async () => {
     if (!statsLoaded) return;
-    if (dailyLimitReached) {
+    if (dailyLossLimitReached) {
       setState((prev) => ({
         status: "error",
         game: prev.game,
-        message: "Daily limit reached. Come back tomorrow.",
+        message: "Daily loss limit reached. Come back tomorrow.",
       }));
       return;
     }
@@ -113,10 +153,18 @@ export function SteamGameViewer() {
     }));
 
     try {
-      const response = await fetch("/api/game", {
+      const params = new URLSearchParams();
+      const excludeList = recentAppIdsRef.current;
+      if (excludeList.length > 0) {
+        params.set("exclude", excludeList.slice(0, 15).join(","));
+      }
+      const response = await fetch(
+        params.toString() ? `/api/game?${params.toString()}` : "/api/game",
+        {
         method: "GET",
         cache: "no-store",
-      });
+        },
+      );
 
       if (!response.ok) {
         const details = (await response.json().catch(() => null)) as
@@ -135,6 +183,12 @@ export function SteamGameViewer() {
       setDidWin(false);
       setGameResolved(false);
       gameResolvedRef.current = false;
+      setRecentAppIds((prev) => {
+        const filtered = prev.filter((id) => id !== game.appId);
+        const next = [game.appId, ...filtered].slice(0, RECENT_APPS_LIMIT);
+        recentAppIdsRef.current = next;
+        return next;
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to fetch game";
@@ -144,7 +198,7 @@ export function SteamGameViewer() {
         message,
       }));
     }
-  }, [dailyLimitReached, statsLoaded]);
+  }, [dailyLossLimitReached, statsLoaded]);
 
   useEffect(() => {
     if (!statsLoaded) return;
@@ -176,13 +230,13 @@ export function SteamGameViewer() {
       setStats((prev) => {
         const normalized = normalizeStats(prev);
         const today = getToday();
-        const sameDay = normalized.lastPlayedDate === today;
         const updated: StatsSnapshot = {
           ...normalized,
           lastPlayedDate: today,
-          gamesPlayedToday: sameDay
-            ? normalized.gamesPlayedToday + 1
-            : 1,
+          lossesToday:
+            result === "loss"
+              ? normalized.lossesToday + 1
+              : normalized.lossesToday,
         };
 
         if (result === "win") {
@@ -246,18 +300,15 @@ export function SteamGameViewer() {
   const statusLabel = useMemo(() => {
     if (state.status === "loading") return "Booting Steam servers…";
     if (state.status === "error") return state.message;
-    if (dailyLimitReached && !state.game) {
-      return "Daily limit reached. Come back tomorrow.";
+    if (dailyLossLimitReached) {
+      return "Daily loss limit reached. Come back tomorrow.";
     }
     if (didWin) return "Nice! You nailed the English review percentage.";
     if (guesses.length >= MAX_GUESSES) {
       return "Out of guesses. Hit New Game to try another title.";
     }
-    if (dailyLimitReached && gameResolved) {
-      return "Daily limit reached. Come back tomorrow.";
-    }
     return "Guess the English Steam review % (0 — 100).";
-  }, [state, didWin, guesses.length, dailyLimitReached, gameResolved]);
+  }, [state, didWin, guesses.length, dailyLossLimitReached]);
 
   const actualScore = state.game?.reviewScore ?? null;
   const revealAnswer = gameResolved && actualScore !== null;
@@ -271,9 +322,9 @@ export function SteamGameViewer() {
   };
 
   return (
-    <section className="mx-auto flex h-full w-full flex-col gap-3 overflow-hidden bg-[#cfd5e0] p-2 text-[#0b1420] sm:max-w-2xl sm:rounded-[32px] sm:border-4 sm:border-[#050a12] sm:p-6 sm:shadow-[18px_18px_0_#050a12]">
-      <header className="relative flex flex-shrink-0 items-center justify-between border-b-2 border-[#050a12] pb-2 sm:border-b-4 sm:pb-3">
-        <div className="flex items-center gap-2 text-xl font-black tracking-widest text-[#0ea5e9] sm:text-2xl">
+    <section className="mx-auto flex w-full max-w-[420px] flex-col gap-2 bg-[#cfd5e0] p-2 text-xs text-[#0b1420] sm:max-w-2xl sm:rounded-[32px] sm:border-4 sm:border-[#050a12] sm:p-6 sm:text-base sm:shadow-[18px_18px_0_#050a12]">
+      <header className="relative flex items-center justify-between border-b-2 border-[#050a12] pb-2 sm:border-b-4 sm:pb-3">
+        <div className="flex items-center gap-1 text-lg font-black tracking-widest text-[#0ea5e9] sm:gap-2 sm:text-2xl">
           <span className="text-[#facc15]">?</span>
           STEAMCODLE
         </div>
@@ -281,9 +332,9 @@ export function SteamGameViewer() {
           type="button"
           aria-label="Toggle stats"
           onClick={() => setShowStats((prev) => !prev)}
-          className="rounded-2xl border-2 border-[#050a12] bg-[#0f172a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1d283a]"
+          className="rounded-2xl border-2 border-[#050a12] bg-[#0f172a] px-2.5 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#1d283a] sm:text-xs"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <SignalDot filled />
             <SignalDot filled />
             <SignalDot filled={state.status === "idle"} />
@@ -298,46 +349,46 @@ export function SteamGameViewer() {
         ) : null}
       </header>
 
-      <div className="flex flex-shrink-0 justify-center">
+      <div className="flex justify-center">
         {state.game ? <SteamGameCard game={state.game} /> : <CardPlaceholder />}
       </div>
 
       <div className="flex-shrink-0 text-center">
-        <p className="text-base font-semibold sm:text-lg">
+        <p className="text-sm font-semibold sm:text-lg">
           Review Guess: {guessCounterLabel}
         </p>
         {revealAnswer ? (
-          <p className="text-xs font-bold text-[#0ea5e9] sm:text-sm">
+          <p className="text-[11px] font-bold text-[#0ea5e9] sm:text-sm">
             Actual: {actualScore}%
           </p>
         ) : (
-          <p className="text-xs text-[#4b5563] sm:text-sm">
-            Target: Steam English review percentage
+          <p className="text-[11px] text-[#4b5563] sm:text-sm">
+            Hit within ±2% of the English Steam score
           </p>
         )}
       </div>
 
-      <ul className="flex flex-shrink-0 flex-col gap-2">
+      <ul className="flex w-full max-w-md flex-shrink-0 flex-col gap-2 self-center sm:max-w-lg">
         {Array.from({ length: MAX_GUESSES }).map((_, index) => {
           const guess = guesses[index];
           const { trend, tone } = getTrendData(guess, actualScore);
           return (
             <li
               key={index}
-              className={`flex items-center justify-between rounded-full border-2 border-[#050a12] px-3 py-1 text-base font-black tracking-wide text-white transition sm:px-4 sm:py-2 sm:text-lg ${tone.bg}`}
+              className={`flex items-center justify-between rounded-full border-2 border-[#050a12] px-3 py-1 text-sm font-black tracking-wide text-white transition sm:px-4 sm:py-2 sm:text-lg ${tone.bg}`}
             >
               <span className={`${tone.text} transition`}>{typeof guess === "number" ? `${guess}%` : "\u00A0"}</span>
-              <span className={`text-lg font-semibold sm:text-xl ${tone.text}`}>{trend}</span>
+              <span className={`text-base font-semibold sm:text-xl ${tone.text}`}>{trend}</span>
             </li>
           );
         })}
       </ul>
 
       <form
-        className="flex flex-shrink-0 flex-wrap items-center gap-3"
+        className="flex w-full max-w-md flex-shrink-0 flex-wrap items-center gap-3 self-center sm:max-w-lg"
         onSubmit={handleSubmitGuess}
       >
-        <label className="flex flex-1 items-center rounded-full border-2 border-[#050a12] bg-white px-3 py-2 text-xs text-[#0b1420] sm:text-sm">
+        <label className="flex flex-1 items-center rounded-full border-2 border-[#050a12] bg-white px-3 py-1.5 text-[11px] text-[#0b1420] sm:py-2 sm:text-sm">
           <span className="mr-2 text-[#0ea5e9]">★</span>
           <input
             type="text"
@@ -355,25 +406,25 @@ export function SteamGameViewer() {
         <button
           type="submit"
           disabled={!canSubmitGuess}
-          className="rounded-full border-2 border-[#050a12] bg-[#0ea5e9] px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition hover:bg-[#0284c7] disabled:cursor-not-allowed disabled:opacity-60 sm:px-6 sm:text-sm"
+          className="rounded-full border-2 border-[#050a12] bg-[#0ea5e9] px-3 py-2 text-[11px] font-black uppercase tracking-widest text-white transition hover:bg-[#0284c7] disabled:cursor-not-allowed disabled:opacity-60 sm:px-6 sm:text-sm"
         >
           Submit
         </button>
       </form>
 
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-t-2 border-[#050a12] pt-2 text-[10px] font-semibold uppercase tracking-[0.4em] text-[#4b5563] sm:border-t-4 sm:pt-3 sm:text-xs">
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-t-2 border-[#050a12] pt-2 text-[9px] font-semibold uppercase tracking-[0.4em] text-[#4b5563] sm:border-t-4 sm:pt-3 sm:text-xs">
         <button
           type="button"
           onClick={handleNewGame}
           className="rounded-full border-2 border-[#050a12] bg-[#0f172a] px-4 py-2 text-xs text-white transition hover:bg-[#1d283a] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
-          disabled={state.status === "loading" || dailyLimitReached}
+          disabled={state.status === "loading" || dailyLossLimitReached}
         >
           {didWin || gameResolved ? "New Game" : "Skip"}
         </button>
         <span className="text-[#0b1420]">Community Score Challenge</span>
       </div>
 
-      <p className="text-center text-xs text-[#0f172a] sm:text-sm">
+      <p className="text-center text-[11px] text-[#0f172a] sm:text-sm">
         {statusLabel}
       </p>
     </section>
@@ -392,7 +443,7 @@ function SignalDot({ filled }: { filled: boolean }) {
 
 function CardPlaceholder() {
   return (
-    <div className="h-40 w-full max-w-[220px] animate-pulse rounded-[28px] border-4 border-dashed border-[#7c8899] bg-[#e2e8f0] sm:h-64 sm:max-w-xs sm:rounded-[32px]" />
+    <div className="h-32 w-full max-w-[200px] animate-pulse rounded-[24px] border-4 border-dashed border-[#7c8899] bg-[#e2e8f0] sm:h-64 sm:max-w-xs sm:rounded-[32px]" />
   );
 }
 
@@ -457,12 +508,12 @@ function StatsPanel({ stats, isDevMode, onClose }: StatsPanelProps) {
       <dl className="space-y-2">
         <div className="flex items-center justify-between">
           <dt className="text-[11px] uppercase tracking-[0.2em] text-[#94a3b8]">
-            Games Today
+            Losses Today
           </dt>
           <dd className="font-bold text-[#0b1420]">
             {isDevMode
-              ? `${stats.gamesPlayedToday} (dev)`
-              : `${Math.min(stats.gamesPlayedToday, DAILY_GAME_LIMIT)}/${DAILY_GAME_LIMIT}`}
+              ? `${stats.lossesToday} (dev)`
+              : `${Math.min(stats.lossesToday, DAILY_LOSS_LIMIT)}/${DAILY_LOSS_LIMIT}`}
           </dd>
         </div>
         <div className="flex items-center justify-between">
