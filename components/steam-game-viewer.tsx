@@ -392,7 +392,7 @@ export function SteamGameViewer() {
           <span className="mr-2 text-[#0ea5e9]">★</span>
           <input
             type="text"
-            className="w-full bg-transparent text-sm font-semibold uppercase tracking-wide text-[#0b1420] placeholder:text-[#94a3b8] focus:outline-none sm:text-base"
+            className="w-full bg-transparent text-base font-semibold uppercase tracking-wide text-[#0b1420] placeholder:text-[#94a3b8] focus:outline-none sm:text-lg"
             placeholder="Enter a % from 0-100"
             value={currentGuess}
             onChange={(event) => setCurrentGuess(event.target.value)}
